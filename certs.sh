@@ -21,7 +21,7 @@ fi
 FQDN=$1
 
 echo "Make directories to work from"
-mkdir -p ./{server,client,ca,tmp}
+mkdir -p ./output/{server,client,ca,tmp}
 
 # -------- CA -------- #
 # You can reuse these  #
@@ -29,7 +29,7 @@ mkdir -p ./{server,client,ca,tmp}
 
 echo "Create your very own Root Certificate Authority"
 openssl genrsa \
-  -out ca/my-private-root-ca.privkey.pem \
+  -out output/ca/my-private-root-ca.privkey.pem \
   2048
 
 echo "Self-sign your Root Certificate Authority"
@@ -39,9 +39,9 @@ openssl req \
   -new \
   -nodes \
   -days 9999 \
-  -key  ca/my-private-root-ca.privkey.pem \
-  -out  ca/my-private-root-ca.cert.pem \
-  -subj "/C=UK/ST=South Yorks/L=Sheffield/O=Totally Information/CN=totallyinformation.net"
+  -key  output/ca/my-private-root-ca.privkey.pem \
+  -out  output/ca/my-private-root-ca.cert.pem \
+  -subj "/C=US/ST=Kansas/L=LFK/O=Custom Certifiers/CN=crooke.github.io"
 
 echo "Import ca/my-private-root-ca.cert.pem to Windows Trusted Root store if required" 
 
@@ -51,7 +51,7 @@ echo "Import ca/my-private-root-ca.cert.pem to Windows Trusted Root store if req
 
 echo "Create a Server Private Key"
 openssl genrsa \
-  -out server/privkey.pem \
+  -out output/server/privkey.pem \
   2048
 
 echo "Create a request from your Server, which your Root CA will sign"
@@ -59,38 +59,38 @@ echo "Create a request from your Server, which your Root CA will sign"
 # NOTE: You MUST match CN to the domain name or ip address you want to use
 # Multi-domain certs require the use of a configuration file and SubjectAltName
 openssl req -new \
-  -key  server/privkey.pem \
-  -out  tmp/csr.pem \
-  -subj "/C=UK/ST=South Yorks/L=Sheffield/O=Totally Information/CN=${FQDN}"
+  -key  output/server/privkey.pem \
+  -out  output/tmp/csr.pem \
+  -subj "/C=US/ST=Kansas/L=LFK/O=Quality Programming/CN=${FQDN}"
 
 echo "Sign the request from Device with your Root CA, creates the actual cert"
 openssl x509 \
   -CAcreateserial -req \
-  -in    tmp/csr.pem \
-  -CA    ca/my-private-root-ca.cert.pem \
-  -CAkey ca/my-private-root-ca.privkey.pem \
-  -out   server/cert.pem \
+  -in    output/tmp/csr.pem \
+  -CA    output/ca/my-private-root-ca.cert.pem \
+  -CAkey output/ca/my-private-root-ca.privkey.pem \
+  -out   output/server/cert.pem \
   -days  9999
 
 # Create a combined pfx file for convenience
 openssl pkcs12 -export \
-	-certfile ca/my-private-root-ca.cert.pem \
-	-inkey server/privkey.pem \
-	-in server/cert.pem \
-	-out server/cert.pfx \
+	-certfile output/ca/my-private-root-ca.cert.pem \
+	-inkey output/server/privkey.pem \
+	-in output/server/cert.pem \
+	-out output/server/cert.pfx \
 	-name "Self-Signed Server Certificate"
 
 echo "Copy root ca cert to server & client as chain.pem"
-rsync -a ca/my-private-root-ca.cert.pem server/chain.pem
-rsync -a ca/my-private-root-ca.cert.pem client/chain.pem
+rsync -a output/ca/my-private-root-ca.cert.pem output/server/chain.pem
+rsync -a output/ca/my-private-root-ca.cert.pem output/client/chain.pem
 echo "Create a server full chain cert for SSL/TLS use"
-cat server/cert.pem server/chain.pem > server/fullchain.pem
+cat output/server/cert.pem output/server/chain.pem > output/server/fullchain.pem
 
 echo "Use in Node.JS as: sslOpts = { key: 'server/privkey.pem', cert: 'server/fullchain.pem' }"
 echo "  as this is self-signed, use of ca opt isn't required as it is included in the chain"
 
 echo "Tidy tmp"
-rm -R tmp
+rm -R output/tmp
 
 # ------------- Client ------------- #
 # Need one of these for each client  #
@@ -99,8 +99,8 @@ rm -R tmp
 # Create a public key in case you want a client to be able to encrypt messages to this server.
 # Not required for SSL/TLS
 openssl rsa -pubout \
-  -in  server/privkey.pem \
-  -out client/server-pubkey.pem
+  -in  output/server/privkey.pem \
+  -out output/client/server-pubkey.pem
 
 #echo "Copy root ca cert to client as chain.pem"
 #rsync -a ca/my-private-root-ca.cert.pem client/chain.pem
@@ -108,8 +108,8 @@ openssl rsa -pubout \
 echo "create DER format crt for iOS Mobile Safari, etc"
 openssl x509 \
 	-outform der \
-	-in  ca/my-private-root-ca.cert.pem \
-	-out client/my-private-root-ca.crt
+	-in  output/ca/my-private-root-ca.cert.pem \
+	-out output/client/my-private-root-ca.crt
 
 echo "Import client/my-private-root-ca.crt"
 echo " to client devices to make them recognise the private CA"
